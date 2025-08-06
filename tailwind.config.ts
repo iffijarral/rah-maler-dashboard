@@ -18,11 +18,35 @@ const config: Config = {
           600: '#2F6FEB',
         },
       },
+      animation: {
+        'toast-in': 'slideIn 0.5s ease-out forwards',
+        'toast-out': 'slideOut 0.5s ease-in forwards',
+      },
     },
     keyframes: {
       shimmer: {
         '100%': {
           transform: 'translateX(100%)',
+        },
+      },
+      slideIn: {
+        '0%': {
+          transform: 'translateX(100%)',
+          opacity: '0',
+        },
+        '100%': {
+          transform: 'translateX(0)',
+          opacity: '1',
+        },
+      },
+      slideOut: {
+        '0%': {
+          transform: 'translateX(0)',
+          opacity: '1',
+        },
+        '100%': {
+          transform: 'translateX(100%)',
+          opacity: '0',
         },
       },
     },

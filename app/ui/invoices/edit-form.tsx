@@ -1,43 +1,94 @@
 'use client';
-
-import { CustomerField, InvoiceForm } from '@/app/lib/definitions';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useState } from 'react';
+import { ProjectShort, ServiceTableRow, UpdateInvoiceInput } from '@/app/lib/definitions';
 import {
   CheckIcon,
   ClockIcon,
-  CurrencyDollarIcon,
   UserCircleIcon,
+  PlusIcon,
+  TrashIcon,
 } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import { Button } from '@/app/ui/button';
+import { reloadInvoices, State, updateInvoice } from '@/app/lib/actions/invoiceActions';
+import { useActionState } from 'react';
+import { Toast } from '../common/toast';
 
 export default function EditInvoiceForm({
   invoice,
-  customers,
+  projects,
+  services,
+  selectedProjectId
 }: {
-  invoice: InvoiceForm;
-  customers: CustomerField[];
+  invoice: UpdateInvoiceInput;
+  projects: ProjectShort[];
+  services: ServiceTableRow[];
+  selectedProjectId: string;
 }) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const updateInvoiceWithId = updateInvoice.bind(null, invoice.id!);
+  const initialState: State = { message: null, errors: {} };
+  const [state, formAction] = useActionState(updateInvoiceWithId, initialState);
+
+  const [serviceRows, setServiceRows] = useState(
+    Array.isArray(invoice.services) && invoice.services.length > 0
+      ? invoice.services.map((s) => ({
+        serviceId: s.service.id ?? '', // instead of s.id
+        serviceName: s.service?.name ?? '',
+        quantity: s.quantity.toString(),
+        amount: (s.amount / 100).toString(),
+      }))
+      : [{ serviceId: '', serviceName: '', quantity: '', amount: '' }]
+  );
+
+  const addServiceRow = () =>
+    setServiceRows([...serviceRows, { serviceId: '', serviceName: '', quantity: '', amount: '' }]);
+
+  const removeServiceRow = (index: number) =>
+    setServiceRows(serviceRows.filter((_, i) => i !== index));
+
+  const handleChange = (
+    index: number,
+    field: 'serviceId' | 'serviceName' | 'quantity' | 'amount',
+    value: string
+  ) => {
+    const updated = [...serviceRows];
+    updated[index][field] = value;
+    setServiceRows(updated);
+  };
+
+  const handleProjectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const projectId = e.target.value;
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('projectId', projectId);
+    router.replace(`/dashboard/invoices/${invoice.id}/edit?${params.toString()}`);
+  };
+
   return (
-    <form>
+    <form action={formAction}>
       <div className="rounded-md bg-gray-50 p-4 md:p-6">
-        {/* Customer Name */}
+        {/* Project Name */}
         <div className="mb-4">
-          <label htmlFor="customer" className="mb-2 block text-sm font-medium">
-            Choose customer
+          <label htmlFor="project" className="mb-2 block text-sm font-medium">
+            Choose project
           </label>
           <div className="relative">
             <select
-              id="customer"
-              name="customerId"
+              id="project"
+              name="projectId"
+              defaultValue={selectedProjectId}
               className="peer block w-full cursor-pointer rounded-md border border-gray-200 py-2 pl-10 text-sm outline-2 placeholder:text-gray-500"
-              defaultValue={invoice.customer_id}
+              onChange={handleProjectChange}
             >
               <option value="" disabled>
-                Select a customer
+                Select a project
               </option>
-              {customers.map((customer) => (
-                <option key={customer.id} value={customer.id}>
-                  {customer.name}
+              {projects?.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.name}
                 </option>
               ))}
             </select>
@@ -45,32 +96,83 @@ export default function EditInvoiceForm({
           </div>
         </div>
 
-        {/* Invoice Amount */}
+        {/* Services */}
         <div className="mb-4">
-          <label htmlFor="amount" className="mb-2 block text-sm font-medium">
-            Choose an amount
-          </label>
-          <div className="relative mt-2 rounded-md">
-            <div className="relative">
-              <input
-                id="amount"
-                name="amount"
-                type="number"
-                step="0.01"
-                defaultValue={invoice.amount}
-                placeholder="Enter USD amount"
-                className="peer block w-full rounded-md border border-gray-200 py-2 pl-10 text-sm outline-2 placeholder:text-gray-500"
-              />
-              <CurrencyDollarIcon className="pointer-events-none absolute left-3 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-gray-500 peer-focus:text-gray-900" />
+          <h3 className="text-sm font-semibold mb-2">Services</h3>
+          {serviceRows.map((row, index) => (
+            <div key={index} className="mb-4 border p-4 rounded-md bg-white">
+              <div className="flex flex-col md:flex-row md:items-center gap-4">
+                {/* Existing service dropdown */}
+                <select
+                  name={`services[${index}][serviceId]`}
+                  value={row.serviceId}
+                  onChange={(e) => handleChange(index, 'serviceId', e.target.value)}
+                  className="flex-1 rounded-md border border-gray-300 p-2 text-sm"
+                >
+                  <option value="">Select service</option>
+                  {services?.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+
+                {/* New service name input */}
+                <input
+                  type="text"
+                  name={`services[${index}][serviceName]`}
+                  value={row.serviceName}
+                  onChange={(e) => handleChange(index, 'serviceName', e.target.value)}
+                  className="flex-1 rounded-md border border-gray-300 p-2 text-sm"
+                  placeholder="Or enter new service"
+                  disabled={!!row.serviceId}
+                />
+                {/* Quantity input */}
+                <input
+                  type="number"
+                  name={`services[${index}][quantity]`}
+                  value={row.quantity}
+                  onChange={(e) => handleChange(index, 'quantity', e.target.value)}
+                  className="w-24 rounded-md border border-gray-300 p-2 text-sm"
+                  placeholder="Quantity"
+                />
+                {/* Amount input */}
+                <input
+                  type="number"
+                  name={`services[${index}][amount]`}
+                  value={row.amount}
+                  onChange={(e) => handleChange(index, 'amount', e.target.value)}
+                  className="w-24 rounded-md border border-gray-300 p-2 text-sm"
+                  placeholder="Amount"
+                />
+
+                {/* Remove button */}
+                <button
+                  type="button"
+                  onClick={() => removeServiceRow(index)}
+                  className="text-red-500 text-sm flex items-center gap-1 hover:underline"
+                >
+                  <TrashIcon className="h-4 w-4" /> Remove
+                </button>
+              </div>
             </div>
+          ))}
+
+          {/* Add Service button */}
+          <div className="flex justify-start">
+            <button
+              type="button"
+              onClick={addServiceRow}
+              className="flex items-center text-sm text-blue-600 hover:underline"
+            >
+              <PlusIcon className="h-4 w-4 mr-1" /> Add Service
+            </button>
           </div>
         </div>
 
         {/* Invoice Status */}
-        <fieldset>
-          <legend className="mb-2 block text-sm font-medium">
-            Set the invoice status
-          </legend>
+        <fieldset className="mb-6">
+          <legend className="mb-2 block text-sm font-medium">Status</legend>
           <div className="rounded-md border border-gray-200 bg-white px-[14px] py-3">
             <div className="flex gap-4">
               <div className="flex items-center">
@@ -109,6 +211,7 @@ export default function EditInvoiceForm({
           </div>
         </fieldset>
       </div>
+
       <div className="mt-6 flex justify-end gap-4">
         <Link
           href="/dashboard/invoices"
@@ -118,6 +221,16 @@ export default function EditInvoiceForm({
         </Link>
         <Button type="submit">Edit Invoice</Button>
       </div>
+      {/* Show the toast notification */}
+      {state.message && (
+        <Toast
+          message={state.message}
+          type={state.success ? "success" : "error"}
+          onClose={async () => {
+            await reloadInvoices(); // ✅ Revalidate AFTER toast closes
+          }}
+        />
+      )}
     </form>
   );
 }

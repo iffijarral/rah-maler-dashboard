@@ -1,15 +1,15 @@
 import { Revenue } from './definitions';
 
 export const formatCurrency = (amount: number) => {
-  return (amount / 100).toLocaleString('en-US', {
+  return (amount / 100).toLocaleString('da-DK', {
     style: 'currency',
-    currency: 'USD',
+    currency: 'DKK',
   });
 };
 
 export const formatDateToLocal = (
   dateStr: string,
-  locale: string = 'en-US',
+  locale: string = 'da-DK',
 ) => {
   const date = new Date(dateStr);
   const options: Intl.DateTimeFormatOptions = {

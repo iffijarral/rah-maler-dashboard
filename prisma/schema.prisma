@@ -1,0 +1,199 @@
+generator client {
+  provider = "prisma-client-js"
+  binaryTargets = ["native", "linux-arm64-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String?
+  createdAt DateTime @default(now())
+}
+
+enum CustomerType {
+  private
+  company  
+}
+
+model Customer {
+  id         String     @id @default(uuid())
+  name       String
+  email      String     @unique
+  phone      String
+  type       CustomerType
+  cvrNumber  String?    @map("cvr_number")
+  isDeleted  Boolean    @default(false) @map("is_deleted")
+  createdAt  DateTime   @default(now()) @map("created_at")
+  updatedAt  DateTime   @updatedAt @map("updated_at")
+  addressId  String?    @unique @map("address_id")
+  address    Address?    @relation(fields: [addressId], references: [id])
+  projects   Project[]
+  @@index([name])
+}
+
+model Address {
+  id          String    @id @default(uuid())
+  street      String
+  postalCode  String    @map("postal_code")
+  city        String    
+
+  customer    Customer?
+  project     Project?
+  worker      Worker?
+}
+
+enum ProjectStatus {
+  active
+  pending  
+  completed
+  stalled       // Work has temporarily stopped for any reason
+  cancelled // Ensure this is present  
+}
+
+model Project {
+  id           String            @id @default(uuid())
+  name         String
+  customerId   String            @map("customer_id")
+  startDate    DateTime          @map("start_date")
+  endDate      DateTime?         @map("end_date")
+  status       ProjectStatus
+  plannedPrice Int               @map("planned_price")
+  isDeleted    Boolean           @default(false) @map("is_deleted")
+  createdAt    DateTime          @default(now()) @map("created_at")
+  updatedAt    DateTime          @updatedAt @map("updated_at")
+  customer     Customer          @relation(fields: [customerId], references: [id])
+  addressId    String?           @unique @map("address_id")
+  address      Address?          @relation(fields: [addressId], references: [id])
+
+  assignments  ProjectAssignment[]
+  workEntries  WorkEntry[]
+  invoices     Invoice[]
+  services     ProjectService[]
+  @@index([name])
+  @@index([customerId, isDeleted])
+}
+
+model ProjectAssignment {
+  id         String   @id @default(uuid())
+  workerId   String   @map("worker_id")
+  projectId  String   @map("project_id")
+  startDate  DateTime @map("start_date")
+  endDate    DateTime? @map("end_date")
+  worker     Worker   @relation(fields: [workerId], references: [id])
+  project    Project  @relation(fields: [projectId], references: [id])
+}
+
+model ProjectService {
+  id         String   @id @default(uuid())
+  projectId  String   @map("project_id")
+  serviceId  String   @map("service_id")
+  unitPrice  Int
+  quantity   Int
+  project    Project  @relation(fields: [projectId], references: [id])
+  service    Service  @relation(fields: [serviceId], references: [id])
+  @@unique([projectId, serviceId])
+}
+
+model WorkEntry {
+  id         String   @id @default(uuid())
+  workerId   String   @map("worker_id")
+  projectId  String   @map("project_id")
+  date       DateTime
+  isFullDay  Boolean  @default(true) @map("is_full_day")
+  notes      String?
+  worker     Worker   @relation(fields: [workerId], references: [id])
+  project    Project  @relation(fields: [projectId], references: [id])
+  @@unique([workerId, projectId, date])
+  @@index([workerId, date])       
+  @@index([projectId, date])      
+}
+
+model Worker {
+  id         String     @id @default(uuid())
+  name       String
+  email      String     @unique
+  phone      String
+  position   String
+  dailyRate  Int        @map("daily_rate") // In smallest unit (e.g. øre)
+  startDate  DateTime   @map("start_date")
+  isActive   Boolean    @default(true) @map("is_active")
+  isDeleted  Boolean    @default(false) @map("is_deleted")
+  createdAt  DateTime   @default(now()) @map("created_at")
+  updatedAt  DateTime   @updatedAt @map("updated_at")
+  addressId  String?    @unique @map("address_id")
+  address    Address?   @relation(fields: [addressId], references: [id])
+  workEntries WorkEntry[]
+  vacations   Vacation[]
+  payments    Payment[]
+  assignments ProjectAssignment[]
+  @@index([isDeleted, name]) 
+  @@index([isDeleted, email])
+}
+
+model Vacation {
+  id         String   @id @default(uuid())
+  workerId   String   @map("worker_id")
+  startDate  DateTime @map("start_date")
+  endDate    DateTime @map("end_date")
+  approved   Boolean  @default(false)
+  reason     String?
+  worker     Worker   @relation(fields: [workerId], references: [id], onDelete: Cascade)
+  @@index([workerId, startDate])
+}
+
+model Payment {
+  id         String        @id @default(uuid())
+  workerId   String        @map("worker_id")
+  amount     Int           // In smallest unit
+  date       DateTime
+  status     PaymentStatus
+  notes      String?
+  worker     Worker        @relation(fields: [workerId], references: [id], onDelete: Cascade)
+  @@index([workerId, date])
+}
+
+enum PaymentStatus {
+  paid
+  pending
+  partial
+}
+
+enum InvoiceStatus {
+  pending
+  paid
+}
+
+model Invoice {
+  id         String           @id @default(uuid())
+  projectId  String           @map("project_id")
+  status     InvoiceStatus
+  totalAmount Int @default(0)
+  date       DateTime
+  isDeleted  Boolean          @default(false) @map("is_deleted")
+  project    Project          @relation(fields: [projectId], references: [id])
+  services   InvoiceService[]
+  @@index([totalAmount])
+}
+
+model InvoiceService {
+  id         String   @id @default(uuid())
+  invoiceId  String   @map("invoice_id")
+  serviceId  String   @map("service_id")
+  amount     Int
+  quantity   Int      @default(1)
+  invoice    Invoice  @relation(fields: [invoiceId], references: [id])
+  service    Service  @relation(fields: [serviceId], references: [id])
+}
+
+model Service {
+  id        String            @id @default(uuid())
+  name      String            @unique
+  services  InvoiceService[]
+  projectServices ProjectService[]
+}

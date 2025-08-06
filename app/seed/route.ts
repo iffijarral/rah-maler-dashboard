@@ -1,117 +1,84 @@
-import bcrypt from 'bcrypt';
-import postgres from 'postgres';
-import { invoices, customers, revenue, users } from '../lib/placeholder-data';
+// app/seed/route.ts
+"use server";
+import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcryptjs';
+import { NextResponse } from 'next/server';
+import { users } from '../lib/placeholder-data';
 
-const sql = postgres(process.env.POSTGRES_URL!, { ssl: 'require' });
+// IMPORTANT: Do NOT instantiate the Prisma client at the top level.
+// This is what's causing the build to fail.
 
+// Factory function to create a new Prisma Client instance
+function createPrismaClientForSeeding() {
+  console.log("Attempting to create Prisma client for seeding...");
+  return new PrismaClient();
+}
+
+// All seeding logic is now contained within this single function.
 async function seedUsers() {
-  await sql`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`;
-  await sql`
-    CREATE TABLE IF NOT EXISTS users (
-      id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-      name VARCHAR(255) NOT NULL,
-      email TEXT NOT NULL UNIQUE,
-      password TEXT NOT NULL
-    );
-  `;
+  console.log('Inside seedUsers');
+  const prisma = createPrismaClientForSeeding();
 
-  const insertedUsers = await Promise.all(
-    users.map(async (user) => {
-      const hashedPassword = await bcrypt.hash(user.password, 10);
-      return sql`
-        INSERT INTO users (id, name, email, password)
-        VALUES (${user.id}, ${user.name}, ${user.email}, ${hashedPassword})
-        ON CONFLICT (id) DO NOTHING;
-      `;
-    }),
-  );
-
-  return insertedUsers;
-}
-
-async function seedInvoices() {
-  await sql`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`;
-
-  await sql`
-    CREATE TABLE IF NOT EXISTS invoices (
-      id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-      customer_id UUID NOT NULL,
-      amount INT NOT NULL,
-      status VARCHAR(255) NOT NULL,
-      date DATE NOT NULL
-    );
-  `;
-
-  const insertedInvoices = await Promise.all(
-    invoices.map(
-      (invoice) => sql`
-        INSERT INTO invoices (customer_id, amount, status, date)
-        VALUES (${invoice.customer_id}, ${invoice.amount}, ${invoice.status}, ${invoice.date})
-        ON CONFLICT (id) DO NOTHING;
-      `,
-    ),
-  );
-
-  return insertedInvoices;
-}
-
-async function seedCustomers() {
-  await sql`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`;
-
-  await sql`
-    CREATE TABLE IF NOT EXISTS customers (
-      id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-      name VARCHAR(255) NOT NULL,
-      email VARCHAR(255) NOT NULL,
-      image_url VARCHAR(255) NOT NULL
-    );
-  `;
-
-  const insertedCustomers = await Promise.all(
-    customers.map(
-      (customer) => sql`
-        INSERT INTO customers (id, name, email, image_url)
-        VALUES (${customer.id}, ${customer.name}, ${customer.email}, ${customer.image_url})
-        ON CONFLICT (id) DO NOTHING;
-      `,
-    ),
-  );
-
-  return insertedCustomers;
-}
-
-async function seedRevenue() {
-  await sql`
-    CREATE TABLE IF NOT EXISTS revenue (
-      month VARCHAR(4) NOT NULL UNIQUE,
-      revenue INT NOT NULL
-    );
-  `;
-
-  const insertedRevenue = await Promise.all(
-    revenue.map(
-      (rev) => sql`
-        INSERT INTO revenue (month, revenue)
-        VALUES (${rev.month}, ${rev.revenue})
-        ON CONFLICT (month) DO NOTHING;
-      `,
-    ),
-  );
-
-  return insertedRevenue;
-}
-
-export async function GET() {
   try {
-    const result = await sql.begin((sql) => [
-      seedUsers(),
-      seedCustomers(),
-      seedInvoices(),
-      seedRevenue(),
-    ]);
+    // Iterate through users, hash password, and create users using Prisma
+    for (const user of users) {
+      const hashedPassword = await bcrypt.hash(user.password, 10);
 
-    return Response.json({ message: 'Database seeded successfully' });
+      // Check if user already exists by email, and if not, create
+      const existingUser = await prisma.user.findUnique({
+        where: { email: user.email },
+      });
+
+      if (!existingUser) {
+        await prisma.user.create({
+          data: {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            password: hashedPassword,
+          },
+        });
+      } else {
+        console.log(`User with email ${user.email} already exists`);
+      }
+    }
+    console.log('Users seeded successfully');
+    return true; // Return a success status
   } catch (error) {
-    return Response.json({ error }, { status: 500 });
+    console.error('[SEED_USERS_ERROR]', error);
+    return false; // Return a failure status
+  } finally {
+    await prisma.$disconnect();
   }
 }
+
+// This function is the API handler that orchestrates the seeding.
+async function runSeedingLogic() {
+  console.log('Seeding database...');
+  const success = await seedUsers();
+
+  if (success) {
+    return NextResponse.json({ message: 'Database seeded successfully' });
+  } else {
+    return NextResponse.json(
+      { error: 'An error occurred during database seeding' },
+      { status: 500 }
+    );
+  }
+}
+
+// This is the function that will run during the build
+function getSkippedResponse() {
+  console.log("Database connection skipped for build process.");
+  return new Response('Database connection skipped for build process.', { status: 200 });
+}
+
+// Conditionally choose which function to use based on the environment variable
+let selectedGetHandler;
+if (process.env.SKIP_DB_CONNECT) {
+  selectedGetHandler = getSkippedResponse;
+} else {
+  selectedGetHandler = runSeedingLogic;
+}
+
+export const GET = selectedGetHandler;
