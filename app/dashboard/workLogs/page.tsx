@@ -4,6 +4,7 @@ import { loadProjects, fetchWorkersAssignedToProject, fetchWorkEntries } from '@
 import { Suspense } from 'react';
 import { Metadata } from 'next';
 import WorkLogGrid from '@/app/ui/workerLogs/grid'; // Confirm this path is correct
+import { ProjectShortGrid } from '@/app/lib/definitions';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,16 +19,17 @@ type FetchedWorkEntry = {
   notes: string; // The database field is 'notes'
 };
 
+type PageProps = {    
+    searchParams?: Promise<{
+        projectId?: string;
+        workerId?: string;
+    }>;
+};
+
 // Add searchParams as a prop to the Page component
-export default async function Page({
-  searchParams,
-}: {
-  searchParams?: {
-    projectId?: string;
-    workerId?: string;
-  };
-}) {
-  const projects = await loadProjects();
+export default async function Page(props: PageProps) {
+  const searchParams = await props.searchParams;
+  const projects: ProjectShortGrid[] = await loadProjects();
 
   // Handle case where no projects are found
   if (!projects || projects.length === 0) {

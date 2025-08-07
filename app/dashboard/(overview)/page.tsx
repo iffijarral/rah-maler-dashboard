@@ -4,9 +4,11 @@ import { Suspense } from 'react';
 import { lusitana } from '@/app/ui/fonts';
 import { LatestInvoicesSkeleton, RevenueChartSkeleton, CardsSkeleton } from '@/app/ui/skeletons';
 import CardWrapper from '@/app/ui/dashboard/cards';
+import { connection } from 'next/server';
 
 export default async function Page() {
-
+    await connection();
+    
     return (
         <main>
             <h1 className={`${lusitana.className} mb-4 text-xl md:text-2xl`}>

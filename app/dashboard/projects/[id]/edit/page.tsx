@@ -1,7 +1,7 @@
 
 import { notFound } from 'next/navigation';
 import Breadcrumbs from '@/app/ui/common/breadcrumbs';
-import { fetchProjectById, loadCustomers, loadWorkers } from '@/app/lib/data';
+import { fetchProjectById, loadCustomers, loadWorkers, loadServices } from '@/app/lib/data';
 import EditProjectForm from '@/app/ui/projects/edit-form';
 import { ProjectWithExtras } from '@/app/lib/definitions';
 
@@ -11,6 +11,7 @@ export default async function Page(props: { params: Promise<{ id: string }> }) {
     const project: ProjectWithExtras | null = await fetchProjectById(id);
     const customers = await loadCustomers();
     const workers = await loadWorkers(); 
+    const services = await loadServices(id);
 
     if (!project) {
         return notFound();
@@ -28,7 +29,7 @@ export default async function Page(props: { params: Promise<{ id: string }> }) {
                     },
                 ]}
             />
-            <EditProjectForm customers={customers} workers={workers} project={project} />
+            <EditProjectForm customers={customers} workers={workers} project={project} services={services} />
         </main>
     );
 }

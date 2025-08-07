@@ -1,15 +1,14 @@
 #!/bin/sh
 
 echo "⏳ Waiting for PostgreSQL to be ready..."
-# Use pg_isready with correct parameters for your environment
-until pg_isready -h db -p 5432; do
+until nc -z db 5432; do
   sleep 1
 done
 echo "✅ PostgreSQL is up!"
-# pnpm prisma generate
-# Apply migrations
-# This is the correct command for production environments
+
+# Prisma commands are usually fine in dev (generate types, push schema)
 pnpm prisma migrate deploy
 
-# Run the production build.
-pnpm start
+# No pnpm build in dev!
+# pnpm dev # <--- ONLY RUN THE DEVELOPMENT SERVER
+pnpm start # <--- RUN THE PRODUCTION SERVER

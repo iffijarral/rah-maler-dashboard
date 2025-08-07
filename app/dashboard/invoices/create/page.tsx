@@ -4,14 +4,17 @@ import { loadProjects, fetchServicesByProject } from '@/app/lib/data';
 
 export const dynamic = 'force-dynamic';
 
-type PageProps = {
-  searchParams?: {
-    projectId?: string;
-  };
+type PageProps = {    
+    searchParams?: Promise<{
+        projectId?: string;
+    }>;
 };
 
-export default async function Page({ searchParams }: PageProps) {
+
+
+export default async function Page(props: PageProps) {
   const projects = await loadProjects();
+  const searchParams =  await props.searchParams;
   const selectedProjectId = searchParams?.projectId || projects[0]?.id || '';
   const services = await fetchServicesByProject(selectedProjectId);
 

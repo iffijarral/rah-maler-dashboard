@@ -3,6 +3,7 @@ import { prisma } from "./prisma";
 import { ProjectStatus } from '@prisma/client';
 import { startOfMonth, endOfMonth, eachMonthOfInterval, startOfYear, endOfYear } from 'date-fns';
 import {
+  ProjectService,
   ProjectWithExtras,
   SalarySummary,
   WorkerShort,
@@ -1363,7 +1364,32 @@ export async function fetchFilteredWorkerLogs(
   }
 }
 
+// ****************** Services ******************
+export async function loadServices(projectId: string): Promise<ProjectService[]> {
+  try {
+    const projectServices = await prisma.projectService.findMany({
+      where: {
+        projectId: projectId,
+      },
+      include: {
+        service: true,
+      },
+    });
 
+    const formattedServices = projectServices.map((ps) => ({
+      id: ps.serviceId,
+      name: ps.service.name,
+      unitPrice: ps.unitPrice,
+      quantity: ps.quantity,
+      projectId: ps.projectId,
+    }));
+
+    return formattedServices;
+  } catch (error) {
+    console.error('Database Error:', error);
+    throw new Error('Failed to fetch services for the project.');
+  }
+}
 // ****************** Vacations ******************
 
 export async function fetchVacationsByWorker(workerId: string) {

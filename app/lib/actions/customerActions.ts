@@ -1,10 +1,9 @@
 'use server';
-
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { prisma } from '../prisma';
-import { ProjectStatus } from '@prisma/client';
 import { AddressSchema, CustomerSchema, DeleteSchema } from '../schemas';
+import type { Prisma } from '@prisma/client';
 
 export type CustomerState = {
     errors?: {
@@ -95,7 +94,7 @@ export async function createCustomer(prevState: CustomerState, formData: FormDat
             message: 'Validation failed. Please fix the errors and try again.',
         };
     }
-    console.log("customerValidation", customerValidation);
+    
     // Save customer to DB
     if (customerValidation.success) {
         const validatedCustomer = {
@@ -189,7 +188,7 @@ export async function updateCustomer(
         const validatedAddress = addressValidation.data;
 
         try {
-            await prisma.$transaction(async (tx) => {
+            await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
                 // Update customer basic info
                 await tx.customer.update({
                     where: { id },
@@ -298,7 +297,7 @@ export async function deleteCustomer(id: string) {
                 where: { customerId: customerId },
                 data: {
                     isDeleted: true,
-                    status: ProjectStatus.cancelled, // <-- Use the imported enum here
+                    status: 'cancelled', // <-- Use the imported enum here
                 },
             });
 

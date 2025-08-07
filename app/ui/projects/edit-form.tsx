@@ -21,8 +21,9 @@ type EditProjectFormProps = {
     services: {
       id: string;
       name: string;
-      unitPrice: number;
-      quantity: number;
+      unitPrice?: number;
+      quantity?: number;
+      
     }[];
     workers: WorkerShort[];
   };
@@ -30,8 +31,9 @@ type EditProjectFormProps = {
   services: {
     id: string;
     name: string;
-    unitPrice: number;
-    quantity: number;
+    unitPrice?: number;
+    quantity?: number;
+    
   }[];
   workers: WorkerShort[];
 };
